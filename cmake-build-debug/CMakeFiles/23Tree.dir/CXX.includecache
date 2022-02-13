@@ -1,0 +1,22 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/mnt/d/Programming/CLion Projects/23Tree/main.cpp
+cstddef
+-
+vector
+-
+memory
+-
+algorithm
+-
+iostream
+-
+set
+-
+
