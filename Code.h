@@ -1,171 +1,452 @@
-#include <cstddef>
-#include <vector>
-#include <memory>
 #include <algorithm>
-#include <iostream>
-
-#include <set>
+#include <memory>
+#include <vector>
 
 template<class T>
-class Set {
-public:
-    Set() {
-        root = nullptr;
-        size_ = 0;
-    }
 
+class Set {
+
+private:
     struct Node {
-        std::vector<std::shared_ptr<Node>> ch_;
-        std::shared_ptr<Node> par_;
-        T max_l_, max_mid_, max_;
-        Node() {
-            par_ = nullptr;
-            ch_.clear();
-        }
+        std::vector<std::shared_ptr<Node>> children;
+        std::shared_ptr<Node> par;
+        T max_l, max_mid, max;
+
+        Node() = default;
+
         Node(T key) {
-            par_ = nullptr;
-            max_l_ = key;
-            max_ = key;
-            ch_.clear();
+            max_l = key;
+            max = key;
         }
-        ~Node() {
-            ch_.clear();
-            par_ = nullptr;
-        }
+
+        ~Node() = default;
     };
 
-    class iterator {
-    public:
-        iterator() {
-            cur = nullptr;
-            is_end = true;
+    bool is_equal(T element1, T element2) const {
+        return !(element1 < element2) && !(element2 < element1);
+    }
+
+    std::shared_ptr<Node> find_vertex(const std::shared_ptr<Node> &now, const T key) const {
+        if (now == nullptr) {
+            return nullptr;
         }
-        ~iterator() {
-            cur = nullptr;
+        if (now->children.empty()) {
+            return now;
         }
-        iterator(std::shared_ptr<Node> node) {
-            cur = node;
-            is_end = false;
-            if (cur == nullptr) {
-                is_end = true;
+        if (now->children.size() == 2) {
+            if (now->max_l < key) {
+                return find_vertex(now->children[1], key);
+            } else {
+                return find_vertex(now->children[0], key);
+            }
+        } else {
+            if (now->max_mid < key) {
+                return find_vertex(now->children[2], key);
+            } else if (now->max_l < key) {
+                return find_vertex(now->children[1], key);
+            } else {
+                return find_vertex(now->children[0], key);
             }
         }
-        const T& operator*() {
-            return cur->max_l_;
+    }
+
+    void make_new_root(const std::shared_ptr<Node> &node1, const std::shared_ptr<Node> &node2) {
+        std::shared_ptr<Node> new_root = std::make_shared<Node>();
+        if (node2->max_l < node1->max_l) {
+            new_root->max_l = node2->max_l;
+            new_root->children.push_back(node2);
+            new_root->children.push_back(node1);
+        } else {
+            new_root->max_l = node1->max_l;
+            new_root->children.push_back(node1);
+            new_root->children.push_back(node2);
         }
-        const T* operator->() {
-            return &(cur->max_l_);
+        new_root->max = std::max(new_root->children[0]->max, new_root->children[1]->max);
+        node1->par = new_root;
+        node2->par = new_root;
+        root_ = new_root;
+    }
+
+    static bool comparator_children(const std::shared_ptr<Node> &child1, const std::shared_ptr<Node> &child2) {
+        return (child1->max_l < child2->max_l);
+    }
+
+    void update_node(const std::shared_ptr<Node> &node) {
+        if (node == nullptr) {
+            return;
+        }
+        if (node->children.empty()) {
+            return;
+        }
+        sort(node->children.begin(), node->children.end(), comparator_children);
+        node->max_l = node->children[0]->max;
+        node->max = node->max_l;
+        for (auto &element: node->children) {
+            element->par = node;
+            if (node->max < element->max) {
+                node->max = element->max;
+            }
+        }
+        if (node->children.size() > 2) {
+            node->max_mid = node->children[1]->max;
+        }
+    }
+
+    void global_update(const std::shared_ptr<Node> &node) {
+        if (node == nullptr) {
+            return;
+        }
+        update_node(node);
+        global_update(node->par);
+    }
+
+    void join_child_to_parent(const std::shared_ptr<Node> &par, const std::shared_ptr<Node> &child) {
+        par->children.push_back(child);
+        child->par = par;
+        update_node(par);
+    }
+
+    std::pair<std::shared_ptr<Node>, std::shared_ptr<Node>> split(const std::shared_ptr<Node> &node) {
+        update_node(node);
+        std::shared_ptr<Node> left = std::make_shared<Node>();
+        std::shared_ptr<Node> right = std::make_shared<Node>();
+        left->children.push_back(node->children[0]);
+        left->children.push_back(node->children[1]);
+        right->children.push_back(node->children[2]);
+        right->children.push_back(node->children[3]);
+        left->children[0]->par = left;
+        left->children[1]->par = left;
+        right->children[0]->par = right;
+        right->children[1]->par = right;
+        update_node(left);
+        update_node(right);
+        return make_pair(left, right);
+    }
+
+    void go_up(const std::shared_ptr<Node> &node) {
+        if (node == nullptr) {
+            return;
+        }
+        if (node->children.size() < 4) {
+            return;
+        }
+        std::shared_ptr<Node> parent = node->par;
+        std::pair<std::shared_ptr<Node>, std::shared_ptr<Node>> pnn = split(node);
+        if (parent == nullptr) {
+            std::shared_ptr<Node> new_root = std::make_shared<Node>();
+            new_root->children.push_back(pnn.first);
+            new_root->children.push_back(pnn.second);
+            pnn.first->par = new_root;
+            pnn.second->par = new_root;
+            root_ = new_root;
+            update_node(root_);
+        } else {
+            parent->children.erase(std::find(parent->children.begin(), parent->children.end(), node));
+            parent->children.push_back(pnn.first);
+            parent->children.push_back(pnn.second);
+            pnn.first->par = parent;
+            pnn.second->par = parent;
+            update_node(parent);
+            go_up(parent);
+        }
+    }
+
+    void insert_to_tree(const T key) {
+        std::shared_ptr<Node> found = find_vertex(root_, key);
+        std::shared_ptr<Node> new_ver = std::make_shared<Node>(key);
+        if (found == nullptr) {
+            size_++;
+            root_ = new_ver;
+            return;
+        }
+        if (is_equal(found->max_l, key)) {
+            return;
+        }
+        size_++;
+        if (found->par == nullptr) {
+            make_new_root(root_, new_ver);
+            return;
+        }
+        join_child_to_parent(found->par, new_ver);
+        go_up(found->par);
+        global_update(found->par);
+    }
+
+    std::shared_ptr<Node> get_uncle(const std::shared_ptr<Node> &current) {
+        if (current->par == nullptr) {
+            return nullptr;
+        }
+        std::shared_ptr<Node> par = current->par;
+
+        if (current != par->children[1]) {
+            return par->children[1];
+        } else {
+            return par->children[0];
+        }
+    }
+
+    void erase_up(const std::shared_ptr<Node> &current) {
+        if (current == nullptr) {
+            return;
+        }
+        if (current->children.size() > 1) {
+            return;
+        }
+        std::shared_ptr<Node> par = current->par;
+        std::shared_ptr<Node> brother;
+        if (par == nullptr) {
+            root_ = current->children[0];
+            current->children[0]->par = nullptr;
+            current->children.clear();
+            return;
         }
 
-        iterator& operator++() {
-            get_right();
+        brother = par->children[1];
+        if (current == brother) {
+            brother = par->children[0];
+        }
+
+        brother->children.push_back(current->children[0]);
+        current->children[0]->par = brother;
+
+        current->children.clear();
+
+        par->children.erase(std::find(par->children.begin(), par->children.end(), current));
+        current->par = nullptr;
+
+        if (brother->children.size() > 3) {
+            std::pair<std::shared_ptr<Node>, std::shared_ptr<Node>> pnn = split(brother);
+            par->children.push_back(pnn.first);
+            par->children.push_back(pnn.second);
+            pnn.first->par = par;
+            pnn.second->par = par;
+            par->children.erase(std::find(par->children.begin(), par->children.end(), brother));
+            brother->children.clear();
+            brother->par = nullptr;
+            update_node(par);
+        }
+
+        erase_up(par);
+
+    }
+
+    void erase_in_tree(const T key) {
+        std::shared_ptr<Node> current = find_vertex(root_, key);
+        if (current == nullptr || !is_equal(current->max_l, key)) {
+            return;
+        }
+        size_--;
+        std::shared_ptr<Node> par = current->par;
+        std::shared_ptr<Node> brother;
+        if (par == nullptr) {
+            root_ = nullptr;
+            current->par = nullptr;
+            return;
+        }
+
+        brother = par->children[1];
+        if (current == brother) {
+            brother = par->children[0];
+        }
+        par->children.erase(std::find(par->children.begin(), par->children.end(), current));
+        current->par = nullptr;
+
+        if (par->children.size() > 1) {
+            global_update(par);
+            return;
+        }
+
+        std::shared_ptr<Node> uncle = get_uncle(par);
+
+        if (uncle == nullptr) {
+            root_ = brother;
+            root_->par = nullptr;
+            root_->children.clear();
+            return;
+        }
+        uncle->children.push_back(brother);
+        par->children.erase(std::find(par->children.begin(), par->children.end(), brother));
+        brother->par = uncle;
+        if (uncle->children.size() > 3) {
+            std::pair<std::shared_ptr<Node>, std::shared_ptr<Node>> pnn = split(uncle);
+
+            uncle->par->children.push_back(pnn.first);
+            uncle->par->children.push_back(pnn.second);
+
+            pnn.first->par = uncle->par;
+            pnn.second->par = uncle->par;
+
+            uncle->par->children.erase(std::find(uncle->par->children.begin(), uncle->par->children.end(), uncle));
+
+            update_node(uncle->par);
+
+            uncle->par = nullptr;
+
+            uncle->children.clear();
+
+        }
+
+        par->par->children.erase(std::find(par->par->children.begin(), par->par->children.end(), par));
+
+        std::shared_ptr<Node> next = par->par;
+
+        par->par = nullptr;
+        par->children.clear();
+
+        erase_up(next);
+        global_update(brother);
+    }
+
+    void destroy_vertex(const std::shared_ptr<Node> &current) {
+        if (current == nullptr) {
+            return;
+        }
+        if (current->children.empty()) {
+            current->par = nullptr;
+        } else {
+            for (auto &element: current->children) {
+                destroy_vertex(element);
+            }
+            current->par = nullptr;
+            current->children.clear();
+        }
+    }
+
+    std::shared_ptr<Node> root_ = nullptr;
+
+    size_t size_ = 0;
+
+public:
+    class iterator {
+    public:
+        bool is_end = false;
+
+        iterator() : is_end(true) {}
+
+        iterator(std::shared_ptr<Node> node) {
+            current_ = node;
+            is_end = (current_ == nullptr);
+        }
+
+        ~iterator() = default;
+
+        const T &operator*() {
+            return current_->max_l;
+        }
+
+        const T *operator->() {
+            return &(current_->max_l);
+        }
+
+        iterator &operator++() {
+            move_right();
             return *this;
         }
-        iterator& operator--() {
-            get_left();
+
+        iterator &operator--() {
+            move_left();
             return *this;
         }
 
         iterator operator++(int) {
-            iterator it(cur);
-            get_right();
+            iterator it(current_);
+            move_right();
             return it;
         }
 
         iterator operator--(int) {
-            iterator it(cur);
-            get_left();
+            iterator it(current_);
+            move_left();
             return it;
         }
 
         bool operator==(iterator it) const {
-            return (this->is_end == it.is_end && this->cur == it.cur);
+            return (this->is_end == it.is_end && this->current_ == it.current_);
         }
+
         bool operator!=(iterator it) const {
-            return (this->is_end != it.is_end) || (this->cur != it.cur);
+            return !(it == *this);
         }
-        std::shared_ptr<Node> cur;
-        bool is_end = false;
-        void get_right() {
-            std::shared_ptr<Node> now = cur;
-            while (now->par_ != nullptr && now == now->par_->ch_.back()) {
-                now = now->par_;
+
+    private:
+        std::shared_ptr<Node> current_;
+
+        void move_right() {
+            std::shared_ptr<Node> now = current_;
+            while (now->par != nullptr && now == now->par->children.back()) {
+                now = now->par;
             }
-            if (now->par_ == nullptr) {
+            if (now->par == nullptr) {
                 is_end = true;
             } else {
-                if (now == now->par_->ch_[0]) {
-                    cur = go_left(now->par_->ch_[1]);
+                if (now == now->par->children[0]) {
+                    current_ = go_left(now->par->children[1]);
                 } else {
-                    cur = go_left(now->par_->ch_[2]);
+                    current_ = go_left(now->par->children[2]);
                 }
             }
         }
 
-        void get_left() {
+        void move_left() {
             if (is_end) {
                 is_end = false;
                 return;
             }
-            std::shared_ptr<Node> now = cur;
-            while (now->par_ != nullptr && now == now->par_->ch_[0]) {
-                now = now->par_;
+            std::shared_ptr<Node> now = current_;
+            while (now->par != nullptr && now == now->par->children[0]) {
+                now = now->par;
             }
-            if (now->par_ == nullptr) {
+            if (now->par == nullptr) {
                 return;
             }
 
-            if (now == now->par_->ch_[1]) {
-                cur = go_right(now->par_->ch_[0]);
+            if (now == now->par->children[1]) {
+                current_ = go_right(now->par->children[0]);
             } else {
-                cur = go_right(now->par_->ch_[1]);
+                current_ = go_right(now->par->children[1]);
             }
         }
     };
 
+    Set() = default;
+
     template<typename Iterator>
+
     Set(Iterator first, Iterator last) {
-        root = nullptr;
-        size_ = 0;
-        while (first != last) {
+        for (auto it = first; it != last; ++it) {
             insert_to_tree(*first);
-            ++first;
         }
     }
 
-    Set(std::initializer_list<T> elems) {
-        root = nullptr;
-        size_ = 0;
-        for (auto el : elems) {
-            insert_to_tree(el);
+    Set(std::initializer_list<T> initializer_list) {
+        for (const auto &element: initializer_list) {
+            insert_to_tree(element);
         }
     }
 
     Set(const Set<T> &st) {
-        destroy_vertex(root);
+        destroy_vertex(root_);
         size_ = 0;
-        root = nullptr;
-        for (auto &el : st) {
-            insert(el);
+        root_ = nullptr;
+        for (const auto &element: st) {
+            insert(element);
         }
     }
 
-    Set& operator=(const Set<T> &st) {
-        if (this->root == st.root)  {
+    Set &operator=(const Set<T> &st) {
+        if (this == &st) {
             return *this;
         }
-        destroy_vertex(root);
-        root = nullptr;
+        destroy_vertex(root_);
+        root_ = nullptr;
         size_ = 0;
-        for (auto &el : st) {
-            insert(el);
+        for (const auto &element: st) {
+            insert(element);
         }
         return *this;
     }
 
-    ~Set() {
-        destroy_vertex(root);
-    }
+    ~Set() = default;
 
     size_t size() const {
         return size_;
@@ -175,17 +456,17 @@ public:
         return size_ == 0;
     }
 
-    void insert(const T& elem) {
-        insert_to_tree(elem);
+    void insert(const T &element) {
+        insert_to_tree(element);
     }
 
-    void erase(const T& elem) {
-        erase_in_tree(elem);
+    void erase(const T &element) {
+        erase_in_tree(element);
     }
 
     iterator begin() const {
-        std::shared_ptr<Node> now = root;
-        if (root == nullptr) {
+        std::shared_ptr<Node> now = root_;
+        if (root_ == nullptr) {
             return end();
         } else {
             now = go_left(now);
@@ -195,8 +476,8 @@ public:
     }
 
     iterator end() const {
-        std::shared_ptr<Node> now = root;
-        if (root == nullptr) {
+        std::shared_ptr<Node> now = root_;
+        if (root_ == nullptr) {
             iterator it(nullptr);
             it.is_end = true;
             return it;
@@ -208,415 +489,45 @@ public:
         }
     }
 
-    iterator find(const T& elem) const {
-        std::shared_ptr<Node> found = find_vertex(root, elem);
+    iterator find(const T &element) const {
+        std::shared_ptr<Node> found = find_vertex(root_, element);
         if (found == nullptr) {
             return end();
         }
-        if (!is_equal(found->max_l_, elem)) {
+        if (!is_equal(found->max_l, element)) {
             return end();
         }
-        iterator it(found);
-        return it;
+        return iterator(found);
     }
 
-    iterator lower_bound(const T& elem) const {
-        std::shared_ptr<Node> found = find_vertex(root, elem);
+    iterator lower_bound(const T &element) const {
+        std::shared_ptr<Node> found = find_vertex(root_, element);
         if (found == nullptr) {
             iterator it = end();
             return it;
         }
-        if (found->max_l_ < elem) {
+        if (found->max_l < element) {
             iterator it = end();
             return it;
         }
-        iterator it(found);
-        return it;
+        return iterator(found);
     }
 
-    static std::shared_ptr<Node> go_right(std::shared_ptr<Node> now) {
-        if (now->ch_.empty()) {
+    static std::shared_ptr<Node> go_right(const std::shared_ptr<Node> &now) {
+        if (now->children.empty()) {
             return now;
-        } else if (now->ch_.size() == 2) {
-            return go_right(now->ch_[1]);
-        } else if (now->ch_.size() == 3) {
-            return go_right(now->ch_[2]);
-        } else {
-            //std::cout << ">4";
-            //std::cout << now->ch_.size() << std::endl;
-            return nullptr;
+        } else if (now->children.size() == 2) {
+            return go_right(now->children[1]);
+        } else if (now->children.size() == 3) {
+            return go_right(now->children[2]);
         }
     }
 
-    static std::shared_ptr<Node> go_left(std::shared_ptr<Node> now) {
-        if (now->ch_.empty()) {
+    static std::shared_ptr<Node> go_left(const std::shared_ptr<Node> &now) {
+        if (now->children.empty()) {
             return now;
         } else {
-            return go_left(now->ch_[0]);
-        }
-    }
-
-    void start_dfs() {
-        dfs(root);
-    }
-private:
-
-    bool is_equal(T el1, T el2) const {
-        return !(el1 < el2) && !(el2 < el1);
-    }
-
-    std::shared_ptr<Node> find_vertex(std::shared_ptr<Node> now, T key) const {
-        if (now == nullptr) {
-            return nullptr;
-        }
-        if (now->ch_.empty()) {
-            return now;
-        }
-        if (now->ch_.size() == 2) {
-            if (now->max_l_ < key) {
-                return find_vertex(now->ch_[1], key);
-            } else {
-                return find_vertex(now->ch_[0], key);
-            }
-        } else {
-            if (now->max_mid_ < key) {
-                return find_vertex(now->ch_[2], key);
-            } else if (now->max_l_ < key){
-                return find_vertex(now->ch_[1], key);
-            } else {
-                return find_vertex(now->ch_[0], key);
-            }
-        }
-    }
-
-    void make_new_root(std::shared_ptr<Node> p1, std::shared_ptr<Node> p2) {
-        std::shared_ptr<Node> new_root = std::make_shared<Node>();
-        if (p2->max_l_ < p1->max_l_) {
-            new_root->max_l_ = p2->max_l_;
-            new_root->ch_.push_back(p2);
-            new_root->ch_.push_back(p1);
-        } else {
-            new_root->max_l_ = p1->max_l_;
-            new_root->ch_.push_back(p1);
-            new_root->ch_.push_back(p2);
-        }
-        new_root->max_ =  std::max(new_root->ch_[0]->max_, new_root->ch_[1]->max_);
-        p1->par_ = new_root;
-        p2->par_ = new_root;
-        root = new_root;
-    }
-
-    static bool comp_children(std::shared_ptr<Node> p1, std::shared_ptr<Node> p2) {
-        return (p1->max_l_ < p2->max_l_);
-    }
-
-    void sort_children(std::shared_ptr<Node> cur) {
-        if (cur->ch_.size() == 1) {
-            return;
-        } else if (cur->ch_.size() == 2) {
-            if (cur->ch_[1]->max_l_ < cur->ch_[0]->max_l_) {
-                std::swap(cur->ch_[1], cur->ch_[0]);
-            }
-        } else if (cur->ch_.size() == 3) {
-            if (cur->ch_[1]->max_l_ < cur->ch_[0]->max_l_ && cur->ch_[1]->max_l_ < cur->ch_[2]->max_l_) {
-                std::swap(cur->ch_[1], cur->ch_[0]);
-            } else if (cur->ch_[2]->max_l_ < cur->ch_[1]->max_l_ && cur->ch_[2]->max_l_ < cur->ch_[0]->max_l_) {
-                std::swap(cur->ch_[2],cur->ch_[0]);
-            }
-            if (cur->ch_[2]->max_l_ < cur->ch_[1]->max_l_) {
-                std::swap(cur->ch_[1], cur->ch_[2]);
-            }
-        } else {
-            if (cur->ch_[1]->max_l_ < cur->ch_[0]->max_l_) {
-                std::swap(cur->ch_[1], cur->ch_[0]);
-            }
-            if (cur->ch_[3]->max_l_ < cur->ch_[2]->max_l_) {
-                std::swap(cur->ch_[2], cur->ch_[3]);
-            }
-            if (cur->ch_[2]->max_l_ < cur->ch_[0]->max_l_) {
-                std::swap(cur->ch_[2], cur->ch_[0]);
-            }
-            if (cur->ch_[3]->max_l_ < cur->ch_[1]->max_l_) {
-                std::swap(cur->ch_[3], cur->ch_[1]);
-            }
-            if (cur->ch_[2]->max_l_ < cur->ch_[1]->max_l_) {
-                std::swap(cur->ch_[1], cur->ch_[2]);
-            }
-        }
-    }
-
-    void update_node(std::shared_ptr<Node> node) {
-        if (node == nullptr) {
-            return;
-        }
-        if (node->ch_.empty()) {
-            return;
-        }
-        //sort(node->ch_.begin(), node->ch_.end(), comp_children);
-        sort_children(node);
-        node->max_l_ = node->ch_[0]->max_;
-        node->max_ = node->max_l_;
-        for (auto &el : node->ch_) {
-            el->par_ = node;
-            if (node->max_ < el->max_) {
-                node->max_ = el->max_;
-            }
-        }
-        if (node->ch_.size() > 2) {
-            node->max_mid_ = node->ch_[1]->max_;
-        }
-    }
-
-    void global_update(std::shared_ptr<Node> node) {
-        if (node == nullptr) {
-            return;
-        }
-        //std::cout << node->max_l_ << std::endl;
-        update_node(node);
-        //std::cout << "OK" << std::endl;
-        global_update(node->par_);
-    }
-
-    void join_child_to_parent(std::shared_ptr<Node> par, std::shared_ptr<Node> ch) {
-        par->ch_.push_back(ch);
-        ch->par_ = par;
-        update_node(par);
-    }
-
-    std::pair<std::shared_ptr<Node>, std::shared_ptr<Node>> split(std::shared_ptr<Node> node) {
-        update_node(node);
-        std::shared_ptr<Node> left = std::make_shared<Node>();
-        std::shared_ptr<Node> right = std::make_shared<Node>();
-        left->ch_.push_back(node->ch_[0]);
-        left->ch_.push_back(node->ch_[1]);
-        right->ch_.push_back(node->ch_[2]);
-        right->ch_.push_back(node->ch_[3]);
-        left->ch_[0]->par_ = left; // вроде норм
-        left->ch_[1]->par_ = left;
-        right->ch_[0]->par_ = right;
-        right->ch_[1]->par_ = right;
-        update_node(left);
-        update_node(right);
-        return make_pair(left, right);
-    }
-
-    void go_up(std::shared_ptr<Node> node) {
-        if (node == nullptr) {
-            return;
-        }
-        if (node->ch_.size() < 4) {
-            return;
-        }
-        std::shared_ptr<Node> parent = node->par_;
-        std::pair<std::shared_ptr<Node>, std::shared_ptr<Node>> pnn = split(node);
-        if (parent == nullptr) {
-            std::shared_ptr<Node> new_root = std::make_shared<Node>();
-            new_root->ch_.push_back(pnn.first);
-            new_root->ch_.push_back(pnn.second);
-            pnn.first->par_=new_root;
-            pnn.second->par_=new_root;
-            root = new_root;
-            update_node(root);
-        } else {
-            parent->ch_.erase(std::find(parent->ch_.begin(), parent->ch_.end(), node));
-            parent->ch_.push_back(pnn.first);
-            parent->ch_.push_back(pnn.second);
-            pnn.first->par_ = parent;
-            pnn.second->par_ = parent;
-            update_node(parent);
-            go_up(parent);
-        }
-    }
-
-    void insert_to_tree(T key) {
-        std::shared_ptr<Node> found = find_vertex(root, key);
-        std::shared_ptr<Node> new_ver = std::make_shared<Node>(key);
-        if (found == nullptr) {
-            size_++;
-            root = new_ver;
-            return;
-        }
-        if (is_equal(found->max_l_, key)) {
-            return;
-        }
-        size_++;
-        if (found->par_ == nullptr) {
-            make_new_root(root, new_ver);
-            return;
-        }
-        join_child_to_parent(found->par_, new_ver);
-        go_up(found->par_);
-        global_update(found->par_);
-    }
-
-    std::shared_ptr<Node> get_uncle(std::shared_ptr<Node> cur) {
-        if (cur->par_ == nullptr) {
-            return nullptr;
-        }
-        std::shared_ptr<Node> par = cur->par_;
-
-        if (cur != par->ch_[1]) {
-            return par->ch_[1];
-        } else {
-            return par->ch_[0];
-        }
-    }
-
-    void erase_up(std::shared_ptr<Node> cur) {
-        if (cur == nullptr) {
-            return;
-        }
-        //std::cout << "NOW" << std::endl;
-        if (cur->ch_.size() > 1) {
-            //std::cout << "HERE" << std::endl;
-            return;
-        }
-        std::shared_ptr<Node> par = cur->par_;
-        std::shared_ptr<Node> brother;
-        if (par == nullptr) {
-            root = cur->ch_[0];
-            cur->ch_[0]->par_ = nullptr;
-            cur->ch_.clear();
-            return;
-        }
-
-        brother = par->ch_[1];
-        if (cur == brother) {
-            brother = par->ch_[0];
-        }
-
-        brother->ch_.push_back(cur->ch_[0]);
-        cur->ch_[0]->par_ = brother;
-
-        cur->ch_.clear();
-
-        par->ch_.erase(std::find(par->ch_.begin(), par->ch_.end(), cur));
-        cur->par_ = nullptr;
-
-        if (brother->ch_.size() > 3) {
-            std::pair<std::shared_ptr<Node>, std::shared_ptr<Node>> pnn = split(brother);
-            par->ch_.push_back(pnn.first);
-            par->ch_.push_back(pnn.second);
-            pnn.first->par_ = par;
-            pnn.second->par_ = par;
-            par->ch_.erase(std::find(par->ch_.begin(), par->ch_.end(), brother));
-            brother->ch_.clear();
-            brother->par_ = nullptr;
-            update_node(par);
-        }
-
-        erase_up(par);
-
-    }
-
-    void erase_in_tree(T key) {
-        std::shared_ptr<Node> cur = find_vertex(root, key);
-        //std::cout << cur->max_l_ << std::endl;
-        if (cur == nullptr || !is_equal(cur->max_l_, key)) {
-            return;
-        }
-        size_--;
-        std::shared_ptr<Node> par = cur->par_;
-        std::shared_ptr<Node> brother;
-        if (par == nullptr) {
-            root = nullptr;
-            cur->par_ = nullptr;
-            return;
-        }
-
-        brother = par->ch_[1];
-        if (cur == brother) {
-            brother = par->ch_[0];
-        }
-        //std::cout << brother->max_l_ << std::endl;
-        par->ch_.erase(std::find(par->ch_.begin(), par->ch_.end(), cur));
-        cur->par_ = nullptr;
-
-        if (par->ch_.size() > 1) {
-            global_update(par);
-            return;
-        }
-
-        std::shared_ptr<Node> uncle = get_uncle(par);
-
-        if (uncle == nullptr) {
-            root = brother;
-            root->par_ = nullptr;
-            root->ch_.clear();
-            return;
-        }
-        //std::cout << uncle->max_l_ << " " << uncle->max_mid_ << " " << uncle->max_ << std::endl;
-        uncle->ch_.push_back(brother);
-        par->ch_.erase(std::find(par->ch_.begin(), par->ch_.end(), brother));
-        brother->par_ = uncle;
-        //std::cout << par->ch_.size() << std::endl;
-        if (uncle->ch_.size() > 3) {
-            std::pair<std::shared_ptr<Node>, std::shared_ptr<Node>> pnn = split(uncle);
-
-            //std::cout << pnn.first->max_l_ << " " << pnn.first->max_mid_ << " " << pnn.first->max_ << std::endl;
-            //std::cout << pnn.second->max_l_ << " " << pnn.second->max_mid_ << " " << pnn.second->max_ << std::endl;
-
-            uncle->par_->ch_.push_back(pnn.first);
-            uncle->par_->ch_.push_back(pnn.second);
-
-            pnn.first->par_ = uncle->par_;
-            pnn.second->par_ = uncle->par_;
-
-            uncle->par_->ch_.erase(std::find(uncle->par_->ch_.begin(), uncle->par_->ch_.end(), uncle));
-
-            update_node(uncle->par_);
-
-            uncle->par_ = nullptr;
-
-            uncle->ch_.clear();
-
-        }
-
-        par->par_->ch_.erase(std::find(par->par_->ch_.begin(), par->par_->ch_.end(), par));
-
-        std::shared_ptr<Node> next = par->par_;
-
-        par->par_ = nullptr;
-        par->ch_.clear();
-
-        erase_up(next);
-        //std::cout << brother->max_l_ << std::endl;
-        global_update(brother);
-    }
-
-    void destroy_vertex(std::shared_ptr<Node> cur) {
-        if (cur == nullptr) {
-            return;
-        }
-        if (cur->ch_.empty()) {
-            cur->par_ = nullptr;
-        } else {
-            for (auto el : cur->ch_) {
-                destroy_vertex(el);
-            }
-            cur->par_ = nullptr;
-            cur->ch_.clear();
-        }
-    }
-
-    std::shared_ptr<Node> root = nullptr;
-
-    size_t size_ = 0;
-
-    void dfs(std::shared_ptr<Node> v) {
-        if (v == nullptr) {
-            return;
-        }
-        /*if (v->ch_.empty()) {
-            std::cout << v->max_l_ << std::endl;
-        }*/
-        for (int i = 0; i < v->ch_.size(); ++i) {
-            std::cout << "from ";
-            std::cout << v->max_l_ << " " << v->max_mid_ << " " << v->max_ << std::endl;
-            std::cout << " to ";
-            std::cout << v->ch_[i]->max_l_ << " " << v->ch_[i]->max_mid_ << " " << v->ch_[i]->max_ << std::endl;
-            //PrintNode(v->ch_[i]);
-            dfs(v->ch_[i]);
+            return go_left(now->children[0]);
         }
     }
 };
