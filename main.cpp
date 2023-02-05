@@ -242,8 +242,6 @@ public:
         } else if (now->ch_.size() == 3) {
             return go_right(now->ch_[2]);
         } else {
-            //std::cout << ">4";
-            //std::cout << now->ch_.size() << std::endl;
             return nullptr;
         }
     }
@@ -310,41 +308,6 @@ private:
         return (p1->max_l_ < p2->max_l_);
     }
 
-    void sort_children(std::shared_ptr<Node> cur) {
-        if (cur->ch_.size() == 1) {
-            return;
-        } else if (cur->ch_.size() == 2) {
-            if (cur->ch_[1]->max_l_ < cur->ch_[0]->max_l_) {
-                std::swap(cur->ch_[1], cur->ch_[0]);
-            }
-        } else if (cur->ch_.size() == 3) {
-            if (cur->ch_[1]->max_l_ < cur->ch_[0]->max_l_ && cur->ch_[1]->max_l_ < cur->ch_[2]->max_l_) {
-                std::swap(cur->ch_[1], cur->ch_[0]);
-            } else if (cur->ch_[2]->max_l_ < cur->ch_[1]->max_l_ && cur->ch_[2]->max_l_ < cur->ch_[0]->max_l_) {
-                std::swap(cur->ch_[2],cur->ch_[0]);
-            }
-            if (cur->ch_[2]->max_l_ < cur->ch_[1]->max_l_) {
-                std::swap(cur->ch_[1], cur->ch_[2]);
-            }
-        } else {
-            if (cur->ch_[1]->max_l_ < cur->ch_[0]->max_l_) {
-                std::swap(cur->ch_[1], cur->ch_[0]);
-            }
-            if (cur->ch_[3]->max_l_ < cur->ch_[2]->max_l_) {
-                std::swap(cur->ch_[2], cur->ch_[3]);
-            }
-            if (cur->ch_[2]->max_l_ < cur->ch_[0]->max_l_) {
-                std::swap(cur->ch_[2], cur->ch_[0]);
-            }
-            if (cur->ch_[3]->max_l_ < cur->ch_[1]->max_l_) {
-                std::swap(cur->ch_[3], cur->ch_[1]);
-            }
-            if (cur->ch_[2]->max_l_ < cur->ch_[1]->max_l_) {
-                std::swap(cur->ch_[1], cur->ch_[2]);
-            }
-        }
-    }
-
     void update_node(std::shared_ptr<Node> node) {
         if (node == nullptr) {
             return;
@@ -352,8 +315,7 @@ private:
         if (node->ch_.empty()) {
             return;
         }
-        //sort(node->ch_.begin(), node->ch_.end(), comp_children);
-        sort_children(node);
+        sort(node->ch_.begin(), node->ch_.end(), comp_children);
         node->max_l_ = node->ch_[0]->max_;
         node->max_ = node->max_l_;
         for (auto &el : node->ch_) {
@@ -371,9 +333,7 @@ private:
         if (node == nullptr) {
             return;
         }
-        //std::cout << node->max_l_ << std::endl;
         update_node(node);
-        //std::cout << "OK" << std::endl;
         global_update(node->par_);
     }
 
@@ -466,9 +426,7 @@ private:
         if (cur == nullptr) {
             return;
         }
-        //std::cout << "NOW" << std::endl;
         if (cur->ch_.size() > 1) {
-            //std::cout << "HERE" << std::endl;
             return;
         }
         std::shared_ptr<Node> par = cur->par_;
@@ -511,7 +469,6 @@ private:
 
     void erase_in_tree(T key) {
         std::shared_ptr<Node> cur = find_vertex(root, key);
-        //std::cout << cur->max_l_ << std::endl;
         if (cur == nullptr || !is_equal(cur->max_l_, key)) {
             return;
         }
@@ -528,7 +485,6 @@ private:
         if (cur == brother) {
             brother = par->ch_[0];
         }
-        //std::cout << brother->max_l_ << std::endl;
         par->ch_.erase(std::find(par->ch_.begin(), par->ch_.end(), cur));
         cur->par_ = nullptr;
 
@@ -545,16 +501,11 @@ private:
             root->ch_.clear();
             return;
         }
-        //std::cout << uncle->max_l_ << " " << uncle->max_mid_ << " " << uncle->max_ << std::endl;
         uncle->ch_.push_back(brother);
         par->ch_.erase(std::find(par->ch_.begin(), par->ch_.end(), brother));
         brother->par_ = uncle;
-        //std::cout << par->ch_.size() << std::endl;
         if (uncle->ch_.size() > 3) {
             std::pair<std::shared_ptr<Node>, std::shared_ptr<Node>> pnn = split(uncle);
-
-            //std::cout << pnn.first->max_l_ << " " << pnn.first->max_mid_ << " " << pnn.first->max_ << std::endl;
-            //std::cout << pnn.second->max_l_ << " " << pnn.second->max_mid_ << " " << pnn.second->max_ << std::endl;
 
             uncle->par_->ch_.push_back(pnn.first);
             uncle->par_->ch_.push_back(pnn.second);
@@ -580,7 +531,6 @@ private:
         par->ch_.clear();
 
         erase_up(next);
-        //std::cout << brother->max_l_ << std::endl;
         global_update(brother);
     }
 
@@ -607,41 +557,33 @@ private:
         if (v == nullptr) {
             return;
         }
-        /*if (v->ch_.empty()) {
-            std::cout << v->max_l_ << std::endl;
-        }*/
         for (int i = 0; i < v->ch_.size(); ++i) {
             std::cout << "from ";
             std::cout << v->max_l_ << " " << v->max_mid_ << " " << v->max_ << std::endl;
             std::cout << " to ";
             std::cout << v->ch_[i]->max_l_ << " " << v->ch_[i]->max_mid_ << " " << v->ch_[i]->max_ << std::endl;
-            //PrintNode(v->ch_[i]);
             dfs(v->ch_[i]);
         }
     }
 };
 
-int main() {
-    std::ios_base::sync_with_stdio(false); std::cin.tie(0); std::cout.tie(0);
-    int t,n,m;
-    std::cin >> t;
-    while (t--) {
-        std::cin >> n >> m;
-        Set<int> st;
-        for (int i = 0; i < n; ++i) {
-            int x;
-            std::cin >> x;
-            st.insert(x);
-        }
-        for (int i = 0; i < m; ++i) {
-            int x;
-            std::cin >> x;
-            if (st.lower_bound(x) == st.end()) std::cout << "end" << std::endl;
-            else std::cout << (*st.lower_bound(x)) << std::endl;
-        }
-    }
-}
-/*
- * 13
-29 704 126 4800 178 4224 1056 1184 5760 22 4160 1440 4160
- */
+//int main() {
+//    std::ios_base::sync_with_stdio(false); std::cin.tie(0); std::cout.tie(0);
+//    int t,n,m;
+//    std::cin >> t;
+//    while (t--) {
+//        std::cin >> n >> m;
+//        Set<int> st;
+//        for (int i = 0; i < n; ++i) {
+//            int x;
+//            std::cin >> x;
+//            st.insert(x);
+//        }
+//        for (int i = 0; i < m; ++i) {
+//            int x;
+//            std::cin >> x;
+//            if (st.lower_bound(x) == st.end()) std::cout << "end" << std::endl;
+//            else std::cout << (*st.lower_bound(x)) << std::endl;
+//        }
+//    }
+//}
