@@ -5,7 +5,6 @@
 #include <vector>
 
 template<class T>
-
 class Set {
 
 private:
@@ -24,11 +23,11 @@ private:
         ~Node() = default;
     };
 
-    bool is_equal(T element1, T element2) const {
+    bool is_equal(const T &element1, const T &element2) const {
         return !(element1 < element2) && !(element2 < element1);
     }
 
-    std::shared_ptr<Node> find_vertex(const std::shared_ptr<Node> &now, const T key) const {
+    std::shared_ptr<Node> find_vertex(const std::shared_ptr<Node> &now, const T &key) const {
         if (now == nullptr) {
             return nullptr;
         }
@@ -153,7 +152,7 @@ private:
         }
     }
 
-    void insert_to_tree(const T key) {
+    void insert_to_tree(const T &key) {
         std::shared_ptr<Node> found = find_vertex(root_, key);
         std::shared_ptr<Node> new_ver = std::make_shared<Node>(key);
         if (found == nullptr) {
@@ -232,7 +231,7 @@ private:
 
     }
 
-    void erase_in_tree(const T key) {
+    void erase_in_tree(const T &key) {
         std::shared_ptr<Node> current = find_vertex(root_, key);
         if (current == nullptr || !is_equal(current->max_l, key)) {
             return;
@@ -314,7 +313,7 @@ private:
         }
     }
 
-    std::shared_ptr<Node> root_ = nullptr;
+    std::shared_ptr<Node> root_;
 
     size_t size_ = 0;
 
